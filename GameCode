@@ -1,0 +1,113 @@
+import tkinter as tk
+from tkinter import filedialog
+from tkinter import messagebox
+import random
+from docx import Document
+
+
+class QuestionWindow:
+    def __init__(self, master, question, options, on_close):
+        self.master = master
+        self.master.title("Question")
+        self.master.geometry("900x700")
+
+        self.question_label = tk.Label(master, text=question)
+        self.question_label.pack(pady=20)
+
+        self.option_labels = []
+        for idx, option in enumerate(options):
+            label = tk.Label(master, text=f"{chr(ord('A') + idx)}. {option}")
+            label.pack()
+            self.option_labels.append(label)
+
+        self.stop_button = tk.Button(master, text="STOP JOC", command=self.master.quit)
+        self.stop_button.pack(side=tk.RIGHT)
+
+        self.next_question_button = tk.Button(master, text="Urmatoarea Intrebare", command=on_close)
+        self.next_question_button.pack(side=tk.LEFT)
+
+
+class GameInterface:
+    def __init__(self, master):
+        self.master = master
+        self.master.title("Game Interface")
+        self.master.geometry("900x700")
+
+        self.start_button = tk.Button(master, text="START JOC", command=self.load_questions)
+        self.start_button.pack(pady=20)
+
+        self.choose_file_button = tk.Button(master, text="Alege fisier Word", command=self.choose_file)
+        self.choose_file_button.pack()
+
+        self.paragraphs = []
+        self.questions = []
+        self.current_question_index = 0
+        self.question_windows = []
+
+    def choose_file(self):
+        self.filename = filedialog.askopenfilename(title="Alege fisier Word", filetypes=[("Word files", "*.docx")])
+        if self.filename:
+            self.start_game()
+
+    def start_game(self):
+        self.master.withdraw()
+        self.load_questions()
+
+    def load_questions(self):
+        try:
+            document = Document(self.filename)
+            self.paragraphs = [p.text.strip() for p in document.paragraphs if p.text.strip() != ""]
+            self.questions = []
+            for idx, paragraph in enumerate(self.paragraphs):
+                if paragraph.endswith(":") or paragraph.endswith("?:"):
+                    self.questions.append(idx)
+            random.shuffle(self.questions)
+            random_question = [self.paragraphs[idx] for idx in self.questions]
+            if len(self.questions) < 30:
+                messagebox.showerror("Eroare", "Fisierul nu contine suficiente intrebari (minim 30)")
+                self.master.deiconify()
+            else:
+                self.show_question()
+        except Exception as e:
+            messagebox.showerror("Eroare", f"Eroare la citirea fisierului Word: {e}")
+            self.master.deiconify()
+
+    def show_question(self):
+        if self.current_question_index < len(self.questions):
+            question_index = self.questions[self.current_question_index]
+            question_text = self.paragraphs[question_index].strip() + " :"
+
+            answer_start = question_index + 1
+            answer_end = min(answer_start + 10, len(self.paragraphs))
+
+            options = random.sample(self.paragraphs[answer_start:answer_end], min(5, answer_end - answer_start))
+
+            question_window = tk.Toplevel(self.master)
+            question_window.protocol("WM_DELETE_WINDOW", lambda: self.close_question_window(question_window))
+
+            question_window_instance = QuestionWindow(
+                question_window,
+                question_text,
+                options,
+                lambda: self.close_question_window(question_window)
+            )
+
+            self.question_windows.append(question_window_instance)
+            self.current_question_index += 1
+        else:
+            messagebox.showinfo("Final Joc", "Ai raspuns la toate intrebarile!")
+            self.master.quit()
+
+    def close_question_window(self, question_window):
+        question_window.destroy()
+        self.show_question()
+
+
+def main():
+    root = tk.Tk()
+    game_interface = GameInterface(root)
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()
